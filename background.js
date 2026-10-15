@@ -1,10 +1,16 @@
 // Background worker: keyboard shortcuts (next/prev channel) + badge upkeep.
 importScripts("shared.js");
 
-async function claudeTab() {
+async function activeSite() {
   const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (active && active.url && active.url.includes("claude.ai")) return active;
-  const tabs = await chrome.tabs.query({ url: "*://*.claude.ai/*" });
+  return { tab: active || null, site: siteOfUrl(active && active.url) };
+}
+
+async function siteTab(site) {
+  const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (active && siteOfUrl(active.url) === site) return active;
+  const patterns = SITES[site].match.map((m) => `*://*.${m}/*`);
+  const tabs = await chrome.tabs.query({ url: patterns });
   if (tabs.length > 0) {
     await chrome.tabs.update(tabs[0].id, { active: true });
     await chrome.windows.update(tabs[0].windowId, { focused: true });
@@ -14,14 +20,21 @@ async function claudeTab() {
 }
 
 async function cycle(dir) {
-  const profiles = await getProfiles();
+  const { tab } = await activeSite();
+  let site = tab ? siteOfUrl(tab.url) : null;
+  if (!site) {
+    const { uiSite } = await chrome.storage.local.get("uiSite");
+    site = SITE_IDS.includes(uiSite) ? uiSite : "claude";
+  }
+  const profiles = await getProfiles(site);
   const keys = sortedKeys(profiles);
   if (keys.length === 0) return;
-  const { lastActive } = await chrome.storage.local.get("lastActive");
+  const store = await chrome.storage.local.get(K(site, "lastActive"));
+  const lastActive = store[K(site, "lastActive")];
   let i = keys.indexOf(lastActive);
   i = i < 0 ? (dir > 0 ? 0 : keys.length - 1) : (i + dir + keys.length) % keys.length;
-  const tab = await claudeTab();
-  await coreSwitchTo(keys[i], tab);
+  const target = (tab && siteOfUrl(tab.url) === site) ? tab : await siteTab(site);
+  await coreSwitchTo(site, keys[i], target);
 }
 
 chrome.commands.onCommand.addListener((command) => {
@@ -30,18 +43,22 @@ chrome.commands.onCommand.addListener((command) => {
 });
 
 let badgeT = 0;
-function refreshBadge() {
+async function refreshBadge() {
   const now = Date.now();
   if (now - badgeT < 2000) return;
   badgeT = now;
-  (async () => {
-    try {
-      const { key } = await detectLiveKey();
-      if (key) { await setBadge(key); return; }
-      const { lastActive } = await chrome.storage.local.get("lastActive");
-      await setBadge(lastActive || null);
-    } catch (e) {}
-  })();
+  try {
+    const { tab } = await activeSite();
+    const site = (tab && siteOfUrl(tab.url)) || "claude";
+    const { key } = await detectLiveKey(site);
+    if (key) { await setBadge(site, key); return; }
+    const store = await chrome.storage.local.get(K(site, "lastActive"));
+    await setBadge(site, store[K(site, "lastActive")] || null);
+  } catch (e) {}
+}
+
+function isWatched(url) {
+  return !!siteOfUrl(url);
 }
 
 chrome.runtime.onInstalled.addListener(refreshBadge);
@@ -50,15 +67,18 @@ chrome.tabs.onActivated.addListener(refreshBadge);
 chrome.tabs.onActivated.addListener(async (info) => {
   try {
     const tab = await chrome.tabs.get(info.tabId);
-    if (tab.url && tab.url.includes("claude.ai")) maybeRefreshSaves(tab.id).catch(() => {});
+    if (isWatched(tab.url)) maybeRefreshSaves(siteOfUrl(tab.url), tab.id).catch(() => {});
   } catch (e) {}
 });
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-  if (info.status === "complete" && tab.url && tab.url.includes("claude.ai")) {
-    maybeRefreshSaves(tabId).catch(() => {});
+  if (info.status === "complete" && isWatched(tab.url)) {
+    maybeRefreshSaves(siteOfUrl(tab.url), tabId).catch(() => {});
     refreshBadge();
   }
 });
 chrome.cookies.onChanged.addListener((info) => {
-  if (info.cookie && isRelevant(info.cookie.domain)) refreshBadge();
+  if (!info.cookie) return;
+  for (const id of SITE_IDS) {
+    if (isRelevant(id, info.cookie.domain)) { refreshBadge(); return; }
+  }
 });

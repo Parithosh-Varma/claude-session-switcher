@@ -2,11 +2,13 @@
 
 <img src="icons/claude-128.png" alt="Claude logo" width="64">
 
-> Save your `claude.ai` logins as channels and flip between accounts in one click — no more signing in and out.
+> Save your `claude.ai` and `chatgpt.com` logins as channels and flip between accounts in one click — no more signing in and out.
 
 ## Why this exists
 
-Claude's web app holds one login per Chrome profile. People with work and personal accounts either juggle profiles or retype credentials all day. This extension snapshots the full login session (cookies + page storage) per account and restores it on demand, so switching takes one click or one keystroke.
+## Why this exists
+
+Claude and ChatGPT each hold one login per browser profile. People with work and personal accounts either juggle profiles or retype credentials all day. This extension snapshots the full login session (cookies + page storage) per account and restores it on demand, so switching takes one click or one keystroke. A tab bar up top flips the whole board between **Claude** and **ChatGPT** — each assistant keeps its own channels, backups, and vault.
 
 ## Features
 
@@ -23,14 +25,14 @@ Claude's web app holds one login per Chrome profile. People with work and person
 ### Prerequisites
 
 - Chrome (or any Chromium browser) with Developer mode available.
-- One `claude.ai` account logged in to begin with.
+- One `claude.ai` or `chatgpt.com` account logged in to begin with.
 
 ### Install
 
 1. Go to `chrome://extensions` and enable **Developer mode**.
 2. Click **Load unpacked** and select this folder.
-3. Open `https://claude.ai/` and log in.
-4. Click the toolbar icon, name the channel (e.g. `work`), hit **Patch**.
+3. Open `https://claude.ai/` (or `https://chatgpt.com/`) and log in.
+4. Click the toolbar icon — it opens on the tab matching your active page — name the channel (e.g. `work`), hit **Patch**.
 5. Repeat step 3–4 for each account. Flip a toggle to switch.
 
 After pulling updates, hit **Reload** on `chrome://extensions`.
@@ -64,7 +66,7 @@ Load `firefox/build/` via `about:debugging → This Firefox → Load Temporary A
 
 | Permission | Why |
 |---|---|
-| `cookies` + `*.claude.ai`, `*.anthropic.com` | read/write session cookies — the actual login |
+| `cookies` + `*.claude.ai`, `*.anthropic.com`, `*.chatgpt.com`, `*.openai.com`, `*.auth0.com` | read/write session cookies — the actual logins |
 | `scripting`, `activeTab` | snapshot/restore page storage, only on `claude.ai` tabs |
 | `storage` | profiles live in `chrome.storage.local`, on this machine only |
 | `tabs` | find/activate the `claude.ai` tab for shortcut switching |

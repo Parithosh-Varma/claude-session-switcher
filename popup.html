@@ -60,11 +60,23 @@ h1 em { color: var(--signal); font-style: italic; }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px; color: var(--muted); margin: 4px 0 0;
 }
+.sitetabs { display: flex; gap: 6px; margin-top: 10px; }
+.sitetab {
+  flex: 1; padding: 7px 0; border-radius: 9px; cursor: pointer;
+  background: var(--plate); border: 1px solid var(--line);
+  color: var(--muted); font-size: 12.5px; font-weight: 650;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+}
+.sitetab .cnt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px; opacity: .75; margin-left: 4px;
+}
+.sitetab.on { color: var(--paper); border-color: var(--signal); background: rgba(232,149,107,.1); }
+.sitetab:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 .patch {
   margin-top: 12px; background: var(--well);
   border: 1px solid var(--line); border-radius: var(--radius); padding: 10px;
-}
-.patch label, .sect {
+}.patch label, .sect {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase;
 }
@@ -216,6 +228,10 @@ footer kbd { background: var(--well); border: 1px solid var(--line); border-radi
   </div>
   <h1>Patch in. <em>Switch fast.</em></h1>
   <p id="sub">no channels patched</p>
+  <div class="sitetabs" role="tablist">
+    <button class="sitetab" id="stab-claude" role="tab">Claude<span class="cnt" id="cnt-claude"></span></button>
+    <button class="sitetab" id="stab-chatgpt" role="tab">ChatGPT<span class="cnt" id="cnt-chatgpt"></span></button>
+  </div>
   <div class="patch">
     <label for="name">Patch current login</label>
     <div class="row">
@@ -239,7 +255,7 @@ footer kbd { background: var(--well); border: 1px solid var(--line); border-radi
       </div>
     </div>
   </div>
-  <footer>Runs from a <kbd>claude.ai</kbd> tab &middot; vault: <kbd>chrome.storage.local</kbd><br>
+  <footer>Runs from a <kbd>claude.ai</kbd> / <kbd>chatgpt.com</kbd> tab &middot; vault: <kbd>chrome.storage.local</kbd><br>
   <button class="link-btn" id="xferToggle">export / import</button> &middot; shortcuts: <kbd>Alt+Shift+N</kbd> next &middot; <kbd>Alt+Shift+P</kbd> prev<br>
   <button class="link-btn" id="diagBtn">copy diagnostics</button> <span style="opacity:.7">for debugging (no secrets)</span></footer>
   <div id="lastop"></div>
