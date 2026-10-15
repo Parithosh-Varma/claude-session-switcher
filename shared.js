@@ -273,7 +273,8 @@ async function coreSwitchTo(name, tab) {
       level = "warn";
       message = `Live with warnings: ${res.ok} set, missing [${res.missing.join(", ")}]. If login fails, log in and patch over “${displayName(name)}”.`;
     }
-    await chrome.storage.local.set({ lastSwitch: { to: name, at: Date.now(), level, missing: res.missing } });
+    const restoredSess = ((target.cookies || []).find((c) => c.name === "sessionKey") || {}).value || null;
+    await chrome.storage.local.set({ lastSwitch: { to: name, at: Date.now(), level, missing: res.missing, sessionKey: restoredSess } });
     return { level, message };
   } catch (e) {
     try {
@@ -285,45 +286,58 @@ async function coreSwitchTo(name, tab) {
   }
 }
 
-// True when live looks like a server-side rotation of the saved session:
-// same cookie names, everything except sessionKey identical.
-function isRotation(liveCookies, savedCookies) {
-  const lv = liveCookies || [], sv = savedCookies || [];
-  if (lv.length === 0 || lv.length !== sv.length) return false;
-  const sm = new Map(sv.map((c) => [c.name, c.value]));
-  let sessionDiffers = false;
-  for (const c of lv) {
-    if (!sm.has(c.name)) return false;
-    if (c.name === "sessionKey") {
-      if (sm.get(c.name) !== c.value) sessionDiffers = true;
-    } else if (sm.get(c.name) !== c.value) {
-      return false;
-    }
-  }
-  return sessionDiffers;
-}
-
 // Silently refresh a matching save while the user browses, so snapshots
-// don't go stale when Claude rotates the session key. Throttled: 5 min.
+// don't go stale. Strict rules:
+//  1. Exact sessionKey match => same session => safe to refresh (throttled).
+//     Storage is only overwritten when the live page is hydrated, so a
+//     half-loaded page can never wipe a save.
+//  2. Rotation is accepted ONLY for the profile we restored ourselves
+//     (lastActive + recorded sessionKey + 30 min window). Cross-profile
+//     guessing by cookie similarity is banned: two accounts on one machine
+//     look nearly identical and would clobber each other.
 async function maybeRefreshSaves(tabId) {
   try {
     const liveCookies = await getRelevantCookies();
     if (liveCookies.length === 0) return;
+    let tab = null;
+    try { tab = await chrome.tabs.get(tabId); } catch (e) { return; }
+    if (!tab || !tab.url || !tab.url.includes("claude.ai")) return;
+    const liveSess = (liveCookies.find((c) => c.name === "sessionKey") || {}).value || null;
+
     const profiles = await getProfiles();
     for (const k of Object.keys(profiles)) {
       if (k === AUTO_KEY) continue;
       const saved = profiles[k];
-      const same = sameSig(cookieSig(liveCookies), cookieSig(saved.cookies));
-      const rotated = isRotation(liveCookies, saved.cookies);
-      if (!same && !rotated) continue;
-      if (Date.now() - (saved.refreshedAt || 0) < 5 * 60 * 1000) continue;
-      let tab = null;
-      try { tab = await chrome.tabs.get(tabId); } catch (e) { return; }
-      if (!tab || !tab.url || !tab.url.includes("claude.ai")) return;
+      const savedSess = ((saved.cookies || []).find((c) => c.name === "sessionKey") || {}).value || null;
+      if (!liveSess || !savedSess || liveSess !== savedSess) continue;
+      if (Date.now() - (saved.refreshedAt || 0) < 5 * 60 * 1000) return;
       const storage = await runInTab(tab.id, dumpStorage, []);
+      const savedKeys = Object.keys((saved.storage && saved.storage.local) || {}).length;
+      const liveKeys = Object.keys((storage && storage.local) || {}).length;
+      if (liveKeys === 0 && savedKeys > 0) return;
       profiles[k] = { cookies: liveCookies, storage, savedAt: saved.savedAt, refreshedAt: Date.now(), url: tab.url };
       await setProfiles(profiles);
       return;
+    }
+
+    const store = await chrome.storage.local.get(["lastActive", "lastSwitch"]);
+    const lastActive = store.lastActive, lastSwitch = store.lastSwitch;
+    if (lastSwitch && lastActive && lastSwitch.to === lastActive && Date.now() - (lastSwitch.at || 0) < 30 * 60 * 1000) {
+      const p = profiles[lastActive];
+      const savedSess = (p && (p.cookies || []).find((c) => c.name === "sessionKey") || {}).value || null;
+      if (p && lastActive !== AUTO_KEY && lastSwitch.sessionKey && liveSess &&
+          savedSess === lastSwitch.sessionKey && liveSess !== lastSwitch.sessionKey) {
+        const storage = await runInTab(tab.id, dumpStorage, []);
+        const liveKeys = Object.keys((storage && storage.local) || {}).length;
+        profiles[lastActive] = {
+          cookies: liveCookies,
+          storage: liveKeys > 0 ? storage : p.storage,
+          savedAt: p.savedAt, refreshedAt: Date.now(), url: tab.url,
+        };
+        await setProfiles(profiles);
+        lastSwitch.sessionKey = liveSess;
+        await chrome.storage.local.set({ lastSwitch });
+      }
     }
   } catch (e) {}
 }

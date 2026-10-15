@@ -16,7 +16,7 @@ Claude's web app holds one login per Chrome profile. People with work and person
 - **Health checks + audit** — saves get flagged (`no session cookie`, `N expired cookies`, `old save`), and flagged channels grow a **check** button that audits session presence, expiry, and storage capture.
 - **Toolbar badge** — shows the live account's initial; hover for the full name.
 - **Encrypted export / import** — move profiles between machines or Chrome profiles via a password-protected vault file (AES-GCM, PBKDF2 100k). A lost password is unrecoverable by design.
-- **Silent save refresh** — while you browse `claude.ai`, matching saves are refreshed (throttled) so server-side session-key rotation doesn't silently stale them.
+- **Silent save refresh** — while you browse `claude.ai`, the live save is refreshed (throttled) on exact-session match, and rotations of a session the extension restored itself are tracked — so server-side key rotation doesn't silently stale saves. Never guesses across accounts.
 
 ## Quick start
 
