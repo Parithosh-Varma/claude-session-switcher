@@ -234,9 +234,23 @@ async function pushHistory(snap) {
 async function coreRestoreSnapshot(snap, tab) {
   await clearRelevantCookies();
   const res = await setRelevantCookies(snap.cookies || []);
+  // Verify the jar BEFORE reload: catches silent Chrome rejections.
+  // (No server contact has happened yet, so the jar must equal what we set.)
+  const verify = await verifyJar(snap.cookies || []);
   const storeRes = await runInTab(tab.id, restoreStorage, [snap.storage || { local: {}, session: {} }]);
   await chrome.tabs.reload(tab.id);
-  return { res, storeRes };
+  return { res, storeRes, verify };
+}
+
+async function verifyJar(expected) {
+  const live = await getRelevantCookies();
+  const liveMap = new Map(live.map((c) => [c.name, c.value]));
+  const missing = [], mismatched = [];
+  for (const c of expected || []) {
+    if (!liveMap.has(c.name)) missing.push(c.name);
+    else if (c.name === "sessionKey" && liveMap.get(c.name) !== c.value) mismatched.push(c.name);
+  }
+  return { missing, mismatched, liveNames: live.map((c) => c.name) };
 }
 
 // Full switch: auto-backup current (+ history), restore target, reload, badge.
@@ -263,15 +277,19 @@ async function coreSwitchTo(name, tab) {
       await setProfiles(profiles);
     }
 
-    const { res, storeRes } = await coreRestoreSnapshot(target, tab);
+    const { res, storeRes, verify } = await coreRestoreSnapshot(target, tab);
     await chrome.storage.local.set({ lastActive: name });
     await setBadge(name);
 
     let level = "success";
     let message = `Live on “${displayName(name)}” — ${res.ok} cookies, storage ${storeRes}.`;
-    if (res.missing.length > 0 || res.failed.length > 0) {
+    const problems = [];
+    if (res.missing.length > 0 || res.failed.length > 0) problems.push(`missing [${res.missing.join(", ")}]`);
+    if (verify.mismatched.length > 0) problems.push(`sessionKey rejected by browser (jar holds a different value)`);
+    if (verify.missing.length > 0) problems.push(`jar verify failed: [${verify.missing.join(", ")}] not in jar after set`);
+    if (problems.length > 0) {
       level = "warn";
-      message = `Live with warnings: ${res.ok} set, missing [${res.missing.join(", ")}]. If login fails, log in and patch over “${displayName(name)}”.`;
+      message = `Switched with problems: ${problems.join("; ")}. If login fails, log in and patch over “${displayName(name)}”.`;
     }
     const restoredSess = ((target.cookies || []).find((c) => c.name === "sessionKey") || {}).value || null;
     await chrome.storage.local.set({ lastSwitch: { to: name, at: Date.now(), level, missing: res.missing, sessionKey: restoredSess } });
@@ -404,4 +422,49 @@ async function importProfiles(fileText, password) {
   }
   await setProfiles(current);
   return { added, renamed, skipped };
+}
+
+// ---- Diagnostics (safe to share: names + timestamps only, NEVER values) ----
+
+async function buildDiagnostics() {
+  const now = Date.now();
+  const scrub = (cookies) => (cookies || []).map((c) => ({
+    n: c.name,
+    d: c.domain,
+    httpOnly: !!c.httpOnly,
+    secure: !!c.secure,
+    sameSite: c.sameSite || null,
+    expIn: c.expirationDate ? Math.round(c.expirationDate - now / 1000) + "s" : "session",
+  }));
+  const live = await getRelevantCookies();
+  const profiles = await getProfiles();
+  const store = await chrome.storage.local.get(["lastActive", "lastSwitch"]);
+  const prof = {};
+  for (const [k, v] of Object.entries(profiles)) {
+    prof[displayName(k)] = {
+      nCookies: (v.cookies || []).length,
+      cookies: scrub(v.cookies),
+      localKeys: Object.keys((v.storage && v.storage.local) || {}).length,
+      sessKeys: Object.keys((v.storage && v.storage.session) || {}).length,
+      savedAt: v.savedAt || null,
+      refreshedAt: v.refreshedAt || null,
+      health: profileHealth(v),
+    };
+  }
+  const ls = store.lastSwitch;
+  return {
+    app: "claude-session-switcher",
+    v: "1.2.3",
+    at: now,
+    liveCookies: scrub(live),
+    profiles: prof,
+    lastActive: store.lastActive ? displayName(store.lastActive) : null,
+    lastSwitch: ls ? {
+      to: displayName(ls.to), at: ls.at, level: ls.level,
+      missing: ls.missing || [],
+      hadSessionKey: !!ls.sessionKey,
+    } : null,
+    history: (await getHist()).map((h) => ({ at: h.savedAt, nCookies: (h.cookies || []).length })),
+    note: "cookie names + expirations + timestamps only — no secret values",
+  };
 }

@@ -299,6 +299,25 @@ document.getElementById("xfile").addEventListener("change", async (e) => {
 });
 
 document.getElementById("save").addEventListener("click", saveCurrent);
+document.getElementById("diagBtn").addEventListener("click", async () => {
+  try {
+    const diag = await buildDiagnostics();
+    const text = JSON.stringify(diag, null, 1);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    setStatus("Diagnostics copied — paste them in chat. Contains cookie names only, no secret values.", "success");
+  } catch (e) {
+    setStatus(`Diagnostics failed: ${e.message}`, "error");
+  }
+});
 document.getElementById("name").addEventListener("keydown", (e) => { if (e.key === "Enter") saveCurrent(); });
 document.getElementById("search").addEventListener("input", () => renderList());
 renderList();
