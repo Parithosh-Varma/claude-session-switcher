@@ -72,6 +72,7 @@ h1 em { color: var(--signal); font-style: italic; }
   font-size: 10.5px; opacity: .75; margin-left: 4px;
 }
 .sitetab.on { color: var(--paper); border-color: var(--signal); background: rgba(232,149,107,.1); }
+.sitetab .tablogo { width: 14px; height: 14px; vertical-align: -2px; margin-right: 5px; }
 .sitetab:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 .patch {
   margin-top: 12px; background: var(--well);
@@ -229,8 +230,8 @@ footer kbd { background: var(--well); border: 1px solid var(--line); border-radi
   <h1>Patch in. <em>Switch fast.</em></h1>
   <p id="sub">no channels patched</p>
   <div class="sitetabs" role="tablist">
-    <button class="sitetab" id="stab-claude" role="tab">Claude<span class="cnt" id="cnt-claude"></span></button>
-    <button class="sitetab" id="stab-chatgpt" role="tab">ChatGPT<span class="cnt" id="cnt-chatgpt"></span></button>
+    <button class="sitetab" id="stab-claude" role="tab"><img class="tablogo" src="icons/claude-16.png" alt="">Claude<span class="cnt" id="cnt-claude"></span></button>
+    <button class="sitetab" id="stab-chatgpt" role="tab"><img class="tablogo" src="icons/chatgpt-16.png" alt="">ChatGPT<span class="cnt" id="cnt-chatgpt"></span></button>
   </div>
   <div class="patch">
     <label for="name">Patch current login</label>

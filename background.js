@@ -51,6 +51,14 @@ async function refreshBadge() {
     const { tab } = await activeSite();
     const site = (tab && siteOfUrl(tab.url)) || "claude";
     const { key } = await detectLiveKey(site);
+    if (tab && tab.id) {
+      try {
+        const icon = site === "chatgpt" ? "chatgpt" : "claude";
+        await chrome.action.setIcon({ tabId: tab.id, path: {
+          16: `icons/${icon}-16.png`, 48: `icons/${icon}-48.png`, 128: `icons/${icon}-128.png`,
+        } });
+      } catch (e) {}
+    }
     if (key) { await setBadge(site, key); return; }
     const store = await chrome.storage.local.get(K(site, "lastActive"));
     await setBadge(site, store[K(site, "lastActive")] || null);

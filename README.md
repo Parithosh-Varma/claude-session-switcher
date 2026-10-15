@@ -1,6 +1,6 @@
 # Claude Session Switcher
 
-<img src="icons/claude-128.png" alt="Claude logo" width="64">
+<img src="icons/claude-128.png" alt="Claude logo" width="64"> <img src="icons/chatgpt-128.png" alt="ChatGPT logo" width="64">
 
 > Save your `claude.ai` and `chatgpt.com` logins as channels and flip between accounts in one click — no more signing in and out.
 
@@ -97,7 +97,7 @@ Nothing leaves the machine: no network calls, no analytics, no sync.
 | `popup.html` / `popup.js` | switchboard UI |
 | `shared.js` | capture / restore / audit / vault core, shared by popup + worker |
 | `background.js` | shortcuts + badge upkeep |
-| `icons/` | Claude mark ([lobe-icons](https://github.com/lobehub/lobe-icons)), 16/48/128 px |
+| `icons/` | Claude mark ([lobe-icons](https://github.com/lobehub/lobe-icons)) + ChatGPT knot ([Wikimedia Commons](https://commons.wikimedia.org/wiki/File:ChatGPT-Logo.png)), 16/48/128 px |
 | `firefox/` | Firefox manifest, `browser`-namespace shim, build script |
 
 ## Contributing
