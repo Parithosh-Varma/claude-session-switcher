@@ -227,8 +227,7 @@ async function renderList() {
   if (auto) items.push({ label: `auto-backup · ${timeAgo(auto.savedAt)}`, snap: auto, histIndex: -1 });
   hist.forEach((h, i) => items.push({ label: `backup ${i + 2} · ${timeAgo(h.savedAt)}`, snap: h, histIndex: i }));
   rec.classList.toggle("show", items.length > 0);
-  for (const it of items) {
-    const div = document.createElement("div");
+  for (const it of items) {    const div = document.createElement("div");
     div.className = "rec";
     const t = document.createElement("span");
     t.className = "t";
@@ -241,6 +240,17 @@ async function renderList() {
     recList.appendChild(div);
   }
   void allKeys;
+  try {
+    const { lastSwitch } = await chrome.storage.local.get("lastSwitch");
+    const el = document.getElementById("lastop");
+    if (lastSwitch && lastSwitch.to) {
+      const cls = lastSwitch.level === "success" ? "ok" : (lastSwitch.level === "warn" ? "wrn" : "bad");
+      const miss = (lastSwitch.missing || []).length > 0 ? ` · missing ${lastSwitch.missing.length}` : "";
+      el.innerHTML = `last switch → ${esc(displayName(lastSwitch.to))} · <span class="${cls}">${esc(lastSwitch.level)}</span> · ${esc(timeAgo(lastSwitch.at))}${esc(miss)}`;
+    } else {
+      el.textContent = "no switches yet";
+    }
+  } catch (e) {}
 }
 
 // ---- Encrypted export / import ----

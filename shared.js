@@ -240,6 +240,7 @@ async function coreRestoreSnapshot(snap, tab) {
 }
 
 // Full switch: auto-backup current (+ history), restore target, reload, badge.
+// On failure, rolls back to the pre-switch session.
 async function coreSwitchTo(name, tab) {
   const profiles = await getProfiles();
   const target = profiles[name];
@@ -250,23 +251,81 @@ async function coreSwitchTo(name, tab) {
     tab = await waitForComplete(tab.id) || tab;
   }
 
+  let prevLive = null;
   try {
-    const live = await snapshotLive(tab.id, tab.url);
-    if (live && !sameSig(cookieSig(live.cookies), cookieSig(target.cookies))) {
+    prevLive = await snapshotLive(tab.id, tab.url);
+  } catch (e) { prevLive = null; }
+
+  try {
+    if (prevLive && !sameSig(cookieSig(prevLive.cookies), cookieSig(target.cookies))) {
       if (profiles[AUTO_KEY]) await pushHistory(profiles[AUTO_KEY]);
-      profiles[AUTO_KEY] = live;
+      profiles[AUTO_KEY] = prevLive;
       await setProfiles(profiles);
     }
-  } catch (e) {}
 
-  const { res, storeRes } = await coreRestoreSnapshot(target, tab);
-  await chrome.storage.local.set({ lastActive: name });
-  await setBadge(name);
+    const { res, storeRes } = await coreRestoreSnapshot(target, tab);
+    await chrome.storage.local.set({ lastActive: name });
+    await setBadge(name);
 
-  if (res.missing.length > 0 || res.failed.length > 0) {
-    return { level: "warn", message: `Live with warnings: ${res.ok} set, missing [${res.missing.join(", ")}]. If login fails, log in and patch over “${displayName(name)}”.` };
+    let level = "success";
+    let message = `Live on “${displayName(name)}” — ${res.ok} cookies, storage ${storeRes}.`;
+    if (res.missing.length > 0 || res.failed.length > 0) {
+      level = "warn";
+      message = `Live with warnings: ${res.ok} set, missing [${res.missing.join(", ")}]. If login fails, log in and patch over “${displayName(name)}”.`;
+    }
+    await chrome.storage.local.set({ lastSwitch: { to: name, at: Date.now(), level, missing: res.missing } });
+    return { level, message };
+  } catch (e) {
+    try {
+      if (prevLive) await coreRestoreSnapshot(prevLive, tab);
+    } catch (rb) {}
+    const message = `Switch to “${displayName(name)}” failed (${(e && e.message) || e}). Rolled back — reload the tab if it looks logged out.`;
+    await chrome.storage.local.set({ lastSwitch: { to: name, at: Date.now(), level: "error", missing: [] } });
+    return { level: "error", message };
   }
-  return { level: "success", message: `Live on “${displayName(name)}” — ${res.ok} cookies, storage ${storeRes}.` };
+}
+
+// True when live looks like a server-side rotation of the saved session:
+// same cookie names, everything except sessionKey identical.
+function isRotation(liveCookies, savedCookies) {
+  const lv = liveCookies || [], sv = savedCookies || [];
+  if (lv.length === 0 || lv.length !== sv.length) return false;
+  const sm = new Map(sv.map((c) => [c.name, c.value]));
+  let sessionDiffers = false;
+  for (const c of lv) {
+    if (!sm.has(c.name)) return false;
+    if (c.name === "sessionKey") {
+      if (sm.get(c.name) !== c.value) sessionDiffers = true;
+    } else if (sm.get(c.name) !== c.value) {
+      return false;
+    }
+  }
+  return sessionDiffers;
+}
+
+// Silently refresh a matching save while the user browses, so snapshots
+// don't go stale when Claude rotates the session key. Throttled: 5 min.
+async function maybeRefreshSaves(tabId) {
+  try {
+    const liveCookies = await getRelevantCookies();
+    if (liveCookies.length === 0) return;
+    const profiles = await getProfiles();
+    for (const k of Object.keys(profiles)) {
+      if (k === AUTO_KEY) continue;
+      const saved = profiles[k];
+      const same = sameSig(cookieSig(liveCookies), cookieSig(saved.cookies));
+      const rotated = isRotation(liveCookies, saved.cookies);
+      if (!same && !rotated) continue;
+      if (Date.now() - (saved.refreshedAt || 0) < 5 * 60 * 1000) continue;
+      let tab = null;
+      try { tab = await chrome.tabs.get(tabId); } catch (e) { return; }
+      if (!tab || !tab.url || !tab.url.includes("claude.ai")) return;
+      const storage = await runInTab(tab.id, dumpStorage, []);
+      profiles[k] = { cookies: liveCookies, storage, savedAt: saved.savedAt, refreshedAt: Date.now(), url: tab.url };
+      await setProfiles(profiles);
+      return;
+    }
+  } catch (e) {}
 }
 
 function sortedKeys(profiles, includeAuto = false) {

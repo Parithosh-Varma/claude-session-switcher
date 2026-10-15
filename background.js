@@ -47,6 +47,18 @@ function refreshBadge() {
 chrome.runtime.onInstalled.addListener(refreshBadge);
 chrome.runtime.onStartup.addListener(refreshBadge);
 chrome.tabs.onActivated.addListener(refreshBadge);
+chrome.tabs.onActivated.addListener(async (info) => {
+  try {
+    const tab = await chrome.tabs.get(info.tabId);
+    if (tab.url && tab.url.includes("claude.ai")) maybeRefreshSaves(tab.id).catch(() => {});
+  } catch (e) {}
+});
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status === "complete" && tab.url && tab.url.includes("claude.ai")) {
+    maybeRefreshSaves(tabId).catch(() => {});
+    refreshBadge();
+  }
+});
 chrome.cookies.onChanged.addListener((info) => {
   if (info.cookie && isRelevant(info.cookie.domain)) refreshBadge();
 });

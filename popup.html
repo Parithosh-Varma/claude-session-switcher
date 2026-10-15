@@ -191,6 +191,13 @@ h1 em { color: var(--signal); font-style: italic; }
 #status.error { background: rgba(226,109,90,.1); color: #f0a49a; border-color: rgba(226,109,90,.4); }
 footer { padding: 10px 2px 2px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; color: var(--dim); line-height: 2; }
 footer kbd { background: var(--well); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-family: inherit; color: var(--muted); }
+#lastop {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px; color: var(--dim); padding: 8px 2px 0; line-height: 1.5;
+}
+#lastop .ok { color: var(--go); }
+#lastop .wrn { color: var(--warn); }
+#lastop .bad { color: var(--danger); }
 .link-btn { background: none; border: none; color: var(--dim); font: inherit; cursor: pointer; padding: 0 2px; text-decoration: underline; text-underline-offset: 2px; }
 .link-btn:hover { color: var(--signal); }
 @media (prefers-reduced-motion: reduce) {
@@ -234,6 +241,7 @@ footer kbd { background: var(--well); border: 1px solid var(--line); border-radi
   </div>
   <footer>Runs from a <kbd>claude.ai</kbd> tab &middot; vault: <kbd>chrome.storage.local</kbd><br>
   <button class="link-btn" id="xferToggle">export / import</button> &middot; shortcuts: <kbd>Alt+Shift+N</kbd> next &middot; <kbd>Alt+Shift+P</kbd> prev</footer>
+  <div id="lastop"></div>
 </div>
 </div>
 <input type="file" id="xfile" accept=".json,application/json" hidden>

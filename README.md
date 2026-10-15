@@ -12,10 +12,11 @@ Claude's web app holds one login per Chrome profile. People with work and person
 
 - **One-click switching** — each account is a channel strip with a toggle. The glowing channel was used last; the green lamp marks the account that is actually live right now (detected from real cookies, so it stays truthful even if you sign in/out by hand).
 - **Keyboard shortcuts** — `Alt+Shift+N` next account, `Alt+Shift+P` previous (remappable at `chrome://extensions/shortcuts`).
-- **Auto-backup + recovery** — every switch snapshots the outgoing session into *Previous · auto*, plus a rolling history of the last 5. A bad switch never loses a login.
+- **Auto-backup + recovery** — every switch snapshots the outgoing session into *Previous · auto*, plus a rolling history of the last 5. A bad switch never loses a login. Failed switches roll back automatically.
 - **Health checks + audit** — saves get flagged (`no session cookie`, `N expired cookies`, `old save`), and flagged channels grow a **check** button that audits session presence, expiry, and storage capture.
 - **Toolbar badge** — shows the live account's initial; hover for the full name.
 - **Encrypted export / import** — move profiles between machines or Chrome profiles via a password-protected vault file (AES-GCM, PBKDF2 100k). A lost password is unrecoverable by design.
+- **Silent save refresh** — while you browse `claude.ai`, matching saves are refreshed (throttled) so server-side session-key rotation doesn't silently stale them.
 
 ## Quick start
 
@@ -81,6 +82,7 @@ Nothing leaves the machine: no network calls, no analytics, no sync.
 | Symptom | Fix |
 |---|---|
 | Switch lands on the login page | Session expired. Log in on `claude.ai`, Patch over the same name. |
+| Signed out out of nowhere | Usually server-side expiry or rotation. Re-log, re-patch; saves now auto-refresh while you browse, and the popup footer shows the last switch result. |
 | `no session cookie` flag | Patched from a logged-out tab or login popup. Log in on the main tab, re-patch. |
 | Shortcuts do nothing | Check `chrome://extensions/shortcuts` for conflicts; shortcuts need a `claude.ai` tab or open one. |
 | Import fails | Wrong password or a non-vault file. Passwords can't be recovered. |

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Claude Session Switcher",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Save and fast-switch between multiple claude.ai login sessions.",
   "browser_specific_settings": {
     "gecko": {
