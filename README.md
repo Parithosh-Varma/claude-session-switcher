@@ -1,35 +1,55 @@
 # Claude Session Switcher
 
-A browser extension that saves your `claude.ai` login sessions and switches between accounts in one click — no more logging in and out. Think of it as a switchboard for Claude accounts.
+<img src="icons/claude-128.png" alt="Claude logo" width="64">
 
-![switchboard UI](icons/claude-128.png)
+> Save your `claude.ai` logins as channels and flip between accounts in one click — no more signing in and out.
 
-## How it works
+## Why this exists
 
-On **Patch**, the extension snapshots the live session for the current `claude.ai` tab:
-
-- all `claude.ai` + `anthropic.com` cookies (including the httpOnly `sessionKey`),
-- `localStorage` + `sessionStorage` of the page.
-
-On **Switch**, it backs up what's live, clears the jar, restores the saved snapshot, and reloads. Sessions are stored in `chrome.storage.local` — on this machine only, never sent anywhere.
-
-## Install (Chrome)
-
-1. Go to `chrome://extensions`, enable **Developer mode**.
-2. **Load unpacked** → select this folder.
-3. Open `https://claude.ai/`, log in, click the toolbar icon, name the channel, hit **Patch**.
-4. Repeat for each account. Flip a channel's toggle to switch.
-
-Reload the extension on `chrome://extensions` after every update.
+Claude's web app holds one login per Chrome profile. People with work and personal accounts either juggle profiles or retype credentials all day. This extension snapshots the full login session (cookies + page storage) per account and restores it on demand, so switching takes one click or one keystroke.
 
 ## Features
 
-- **One-click switching** — channel strips with toggle switches; the glowing channel is last used, the green lamp is what's actually live (live-detect matches cookies, so it stays truthful even if you log in/out by hand).
-- **Keyboard shortcuts** — `Alt+Shift+N` next account, `Alt+Shift+P` previous. Remap at `chrome://extensions/shortcuts`.
+- **One-click switching** — each account is a channel strip with a toggle. The glowing channel was used last; the green lamp marks the account that is actually live right now (detected from real cookies, so it stays truthful even if you sign in/out by hand).
+- **Keyboard shortcuts** — `Alt+Shift+N` next account, `Alt+Shift+P` previous (remappable at `chrome://extensions/shortcuts`).
 - **Auto-backup + recovery** — every switch snapshots the outgoing session into *Previous · auto*, plus a rolling history of the last 5. A bad switch never loses a login.
-- **Health + audit** — saves are flagged (`no session cookie`, `N expired cookies`, `old save`), and any flagged channel gets a **check** button that audits it (session presence, expiry, storage capture).
-- **Toolbar badge** — shows the initial of the live account; hover for the full name.
-- **Encrypted export / import** — move profiles between machines or Chrome profiles. Vault footer → set a password → export downloads an AES-GCM (PBKDF2 100k) file. Wrong password = unrecoverable by design.
+- **Health checks + audit** — saves get flagged (`no session cookie`, `N expired cookies`, `old save`), and flagged channels grow a **check** button that audits session presence, expiry, and storage capture.
+- **Toolbar badge** — shows the live account's initial; hover for the full name.
+- **Encrypted export / import** — move profiles between machines or Chrome profiles via a password-protected vault file (AES-GCM, PBKDF2 100k). A lost password is unrecoverable by design.
+
+## Quick start
+
+### Prerequisites
+
+- Chrome (or any Chromium browser) with Developer mode available.
+- One `claude.ai` account logged in to begin with.
+
+### Install
+
+1. Go to `chrome://extensions` and enable **Developer mode**.
+2. Click **Load unpacked** and select this folder.
+3. Open `https://claude.ai/` and log in.
+4. Click the toolbar icon, name the channel (e.g. `work`), hit **Patch**.
+5. Repeat step 3–4 for each account. Flip a toggle to switch.
+
+After pulling updates, hit **Reload** on `chrome://extensions`.
+
+## Usage
+
+- **Patch** — saves the current tab's session under the name you type.
+- **Toggle** — backs up the live session, restores the channel, reloads the tab.
+- **check** (on flagged channels) — audits the save and reports exactly what's wrong.
+- **Recovery section** — restores auto-backups when a switch goes sideways.
+- **Vault (footer)** — set a password, then `↓ export` to download the encrypted vault or `↑ import` to merge one in. Conflicting names are kept as `(imported)` copies; identical saves are skipped.
+
+## How it works
+
+```
+Patch:  claude.ai tab → cookies + localStorage/sessionStorage → chrome.storage.local
+Switch: snapshot live → clear jar → restore saved snapshot → reload tab
+```
+
+Each save holds the `claude.ai` + `anthropic.com` cookies (including the httpOnly `sessionKey`) and the page's web storage. Restore replays them with original attributes (`Secure`, `HttpOnly`, `SameSite`, `__Host-` rules, CHIPS partitions), then verifies what actually landed and warns about anything missing. Shared logic lives in `shared.js` (no DOM), used by both the popup and the background worker.
 
 ## Firefox
 
@@ -37,33 +57,45 @@ Reload the extension on `chrome://extensions` after every update.
 ./firefox/make-firefox.sh
 ```
 
-then load `firefox/build/` via `about:debugging → This Firefox → Load Temporary Add-on`. Requires Firefox 131+ (uses `scripting.executeScript` with `world: "MAIN"`). Status: ported, smoke-test before daily use — see [`firefox/`](firefox/).
+Load `firefox/build/` via `about:debugging → This Firefox → Load Temporary Add-on`. Requires Firefox 131+. The Firefox port is built and syntax-checked but not yet daily-driven — report issues if you try it.
 
-## Permissions — why each
+## Permissions
 
 | Permission | Why |
 |---|---|
-| `cookies` + `*.claude.ai` / `*.anthropic.com` | read/write session cookies (the actual login) |
+| `cookies` + `*.claude.ai`, `*.anthropic.com` | read/write session cookies — the actual login |
 | `scripting`, `activeTab` | snapshot/restore page storage, only on `claude.ai` tabs |
-| `storage` | profiles live in `chrome.storage.local` on this machine |
-| `tabs` | find/activate the `claude.ai` tab for shortcuts |
+| `storage` | profiles live in `chrome.storage.local`, on this machine only |
+| `tabs` | find/activate the `claude.ai` tab for shortcut switching |
+
+Nothing leaves the machine: no network calls, no analytics, no sync.
+
+## Limitations
+
+- One live login per Chrome profile — cookies are shared across tabs, so two accounts can't be active side by side in one window. Use two Chrome profiles, tiled, for that.
+- Saved sessions can expire server-side; the extension can't renew them, only restore what was saved.
+- Sessions are credentials: anyone with your browser profile (or a vault file + its password) can act as you. Delete channels you don't use.
 
 ## Troubleshooting
 
-- **Switch lands on the login page** — the saved session expired server-side. Log in manually on `claude.ai`, then Patch over the same name.
-- **“No session cookie” flag** — you patched from a logged-out tab or a login popup. Log in on the main `claude.ai` tab and re-patch.
-- **Side-by-side accounts** — impossible in one Chrome profile (cookies are shared per profile, not per tab). Use two Chrome profiles, one per account, tiled side by side.
-- **Lost password on an export file** — unrecoverable. The key is derived from your password only.
+| Symptom | Fix |
+|---|---|
+| Switch lands on the login page | Session expired. Log in on `claude.ai`, Patch over the same name. |
+| `no session cookie` flag | Patched from a logged-out tab or login popup. Log in on the main tab, re-patch. |
+| Shortcuts do nothing | Check `chrome://extensions/shortcuts` for conflicts; shortcuts need a `claude.ai` tab or open one. |
+| Import fails | Wrong password or a non-vault file. Passwords can't be recovered. |
 
-## Privacy
+## Project structure
 
-Session cookies *are* credentials. Anyone with access to your browser profile (or an exported vault + its password) can act as you on Claude. Don't share vault files; Delete channels you no longer use.
+| Path | Purpose |
+|---|---|
+| `manifest.json` | MV3 manifest (Chrome), v1.2.0 |
+| `popup.html` / `popup.js` | switchboard UI |
+| `shared.js` | capture / restore / audit / vault core, shared by popup + worker |
+| `background.js` | shortcuts + badge upkeep |
+| `icons/` | Claude mark ([lobe-icons](https://github.com/lobehub/lobe-icons)), 16/48/128 px |
+| `firefox/` | Firefox manifest, `browser`-namespace shim, build script |
 
-## Files
+## Contributing
 
-- `manifest.json` — MV3 manifest (Chrome)
-- `popup.html` / `popup.js` — switchboard UI
-- `shared.js` — session capture/restore/audit/transfer core (no DOM; shared with the worker)
-- `background.js` — shortcuts + badge upkeep
-- `icons/` — Claude mark (via [lobe-icons](https://github.com/lobehub/lobe-icons)), 16/48/128px
-- `firefox/` — Firefox manifest, `browser`-namespace shim, build script
+Bug reports and small PRs welcome. Please describe your browser + version, the channel state (flags shown), and the exact status message — the status line already contains the diagnosis in most cases.
